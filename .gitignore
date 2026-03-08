@@ -30,3 +30,6 @@ Thumbs.db
 # Verdict data
 *.db
 *.sqlite
+
+# Dolt database files (added by bd init)
+.dolt/

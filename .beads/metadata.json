@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "server",
+  "dolt_database": "verdict",
+  "project_id": "11c87028-3793-4772-9769-b87dbc857f7e"
+}
