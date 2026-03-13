@@ -18,7 +18,7 @@ verdict:
   subject:
     type: "agent_output"                 # One of: agent_output, correlation, triage,
                                          #   investigation, remediation, review,
-                                         #   classification, recommendation, moderation, custom
+                                         #   classification, recommendation, moderation, communication, custom
     agent: "code-reviewer"               # The agent whose output is being judged
     service: "webapp"                     # Service context
     environment: "production"            # Deployment environment

@@ -60,6 +60,7 @@
             "classification",
             "recommendation",
             "moderation",
+            "communication",
             "custom"
           ],
           "description": "What kind of judgment this verdict records"

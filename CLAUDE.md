@@ -31,7 +31,8 @@ verdicts/
 │           ├── models.py        # Dataclasses: Verdict, Producer, Subject, Judgment, Outcome, Lineage, Metadata
 │           ├── core.py          # Operations: create, link, resolve, supersede
 │           ├── serialise.py     # to_json, from_json, to_dict, from_dict
-│           └── store.py         # VerdictStore ABC, MemoryStore, VerdictFilter, AccuracyFilter
+│           ├── store.py         # VerdictStore ABC, MemoryStore, VerdictFilter, AccuracyFilter
+│           └── sqlite_store.py  # SQLiteVerdictStore — WAL-mode, thread-local connections
 ├── stores/
 │   ├── sqlite/                  # Default Tier 1 store
 │   ├── postgres/                # Tier 2 store
@@ -56,7 +57,7 @@ Three phases per verdict:
 | Tier | Store | Notes |
 |------|-------|-------|
 | In-memory | `MemoryStore` | Thread-safe, for testing and development |
-| Tier 1 | SQLite | Default, zero dependencies |
+| Tier 1 | `SQLiteVerdictStore` | Implemented — WAL mode, thread-local connections, zero dependencies |
 | Tier 2 | PostgreSQL | Concurrent access, full-text search |
 | Tier 3 | ClickHouse | Analytics over millions of verdicts |
 <!-- END AUTO-MANAGED -->
@@ -70,9 +71,10 @@ Install: `pip install verdict`
 ### Public API
 
 ```python
-from verdict import create, link, resolve       # core operations
-from verdict import to_json, from_json          # serialisation
-from verdict import MemoryStore, VerdictFilter, AccuracyFilter  # store
+from verdict import create, link, resolve, supersede          # core operations
+from verdict import to_json, from_json                        # serialisation
+from verdict import MemoryStore, SQLiteVerdictStore           # store implementations
+from verdict import VerdictFilter, AccuracyFilter             # query/filter types
 ```
 
 ### Key Operations
@@ -93,7 +95,7 @@ from verdict import MemoryStore, VerdictFilter, AccuracyFilter  # store
 
 ### Validation Rules
 
-- `Subject.type` must be in `VALID_SUBJECT_TYPES`: `agent_output`, `correlation`, `triage`, `investigation`, `remediation`, `review`, `classification`, `recommendation`, `moderation`, `custom`
+- `Subject.type` must be in `VALID_SUBJECT_TYPES`: `agent_output`, `correlation`, `triage`, `investigation`, `remediation`, `review`, `classification`, `recommendation`, `moderation`, `communication`, `custom`
 - `Judgment.action` must be in `VALID_ACTIONS`: `approve`, `reject`, `flag`, `escalate`, `defer`, `custom`
 - `Judgment.confidence` and `Judgment.score` (if set): `0.0 <= value <= 1.0`
 - `Judgment.dimensions` values: all must be in `[0.0, 1.0]`
@@ -125,6 +127,16 @@ class VerdictStore(ABC):
 **AccuracyReport** fields: `producer`, `total`, `total_resolved`, `confirmation_rate`, `override_rate`, `partial_rate`, `pending_rate`, `mean_confidence_on_confirmed`, `mean_confidence_on_overridden`, `dimension`
 
 `by_lineage` direction: `"up"` (parents + context), `"down"` (children), `"both"`
+
+### SQLiteVerdictStore
+
+`SQLiteVerdictStore(db_path)` — the Tier 1 default store. Implements the full `VerdictStore` interface.
+
+- **Concurrency**: WAL mode (`PRAGMA journal_mode=WAL`) + `PRAGMA busy_timeout=5000`; one thread-local `sqlite3.Connection` per thread (lazy init)
+- **Schema**: single `verdicts` table — `id`, `version`, `timestamp`, `data` (full JSON blob), `producer_system`, `subject_type`, `subject_agent`, `subject_service`, `outcome_status`, `ttl`, `closed_at`; indexes on `timestamp`, `(producer_system, timestamp)`, `subject_type`, `outcome_status`
+- **Tag filtering**: tags live inside the JSON blob, so SQL LIMIT is suppressed when `VerdictFilter.tags` is set; Python-side filtering is applied after fetch
+- **Context manager**: supports `with SQLiteVerdictStore(...) as store:` — calls `close()` on exit, which releases the calling thread's connection
+- **expire()**: scans all `pending` rows in Python, marks past-TTL verdicts as `expired` in a single batched commit
 
 ---
 

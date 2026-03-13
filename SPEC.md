@@ -26,7 +26,7 @@ verdict:
   subject:
     type: "agent_output"                 # agent_output | correlation | triage | investigation |
                                          # remediation | review | classification | recommendation |
-                                         # moderation | custom
+                                         # moderation | communication | custom
     agent: "code-reviewer"               # optional, the agent whose output is being judged
     service: "webapp"                     # optional, the service context
     environment: "production"            # optional
@@ -100,6 +100,7 @@ verdict:
 | `classification` | Content moderator | "This content is safe" |
 | `recommendation` | Any recommender system | "User would enjoy this product" |
 | `moderation` | Trust and safety system | "This message violates policy" |
+| `communication` | Mayday Communication agent | "Incident update is accurate and complete" |
 | `custom` | Any domain-specific AI | Domain-specific judgment |
 
 ## Lineage
