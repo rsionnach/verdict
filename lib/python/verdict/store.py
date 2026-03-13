@@ -7,7 +7,8 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 
-from verdict.models import AccuracyReport, Outcome, Verdict
+from verdict.core import resolve as _core_resolve
+from verdict.models import AccuracyReport, GroundTruth, Outcome, Override, Verdict
 
 
 @dataclass
@@ -68,6 +69,29 @@ class VerdictStore(ABC):
     @abstractmethod
     def expire(self) -> int:
         """Expire pending verdicts past their TTL. Returns count expired."""
+
+    def resolve(
+        self,
+        verdict_id: str,
+        status: str,
+        override: dict | Override | None = None,
+        ground_truth: dict | GroundTruth | None = None,
+        resolution: str | None = None,
+    ) -> Verdict:
+        """Resolve a verdict in the store: get, validate, persist in one call.
+
+        Delegates validation to core.resolve(). Returns the persisted verdict.
+
+        Raises:
+            KeyError: If verdict_id not found in store.
+            ValueError: If verdict is not pending, or status is invalid.
+        """
+        verdict = self.get(verdict_id)
+        if verdict is None:
+            raise KeyError(f"Verdict {verdict_id} not found")
+        _core_resolve(verdict, status, override=override,
+                       ground_truth=ground_truth, resolution=resolution)
+        return self.update_outcome(verdict_id, verdict.outcome)
 
 
 class MemoryStore(VerdictStore):

@@ -283,3 +283,68 @@ class TestStoreCommunicationSubjectType:
         retrieved = store.get(v.id)
         assert retrieved is not None
         assert retrieved.subject.type == "communication"
+
+
+class TestStoreResolve:
+    def test_resolve_confirmed(self, store):
+        v = _make_verdict()
+        store.put(v)
+        updated = store.resolve(v.id, "confirmed")
+        assert updated.outcome.status == "confirmed"
+        assert updated.outcome.closed_at is not None
+        # Verify persisted
+        retrieved = store.get(v.id)
+        assert retrieved.outcome.status == "confirmed"
+
+    def test_resolve_with_override(self, store):
+        v = _make_verdict()
+        store.put(v)
+        updated = store.resolve(
+            v.id, "overridden",
+            override={"by": "human", "reasoning": "wrong"},
+        )
+        assert updated.outcome.status == "overridden"
+        assert updated.outcome.override.by == "human"
+        assert updated.outcome.override.reasoning == "wrong"
+        # Verify persisted
+        retrieved = store.get(v.id)
+        assert retrieved.outcome.override.by == "human"
+
+    def test_resolve_with_ground_truth(self, store):
+        v = _make_verdict()
+        store.put(v)
+        updated = store.resolve(
+            v.id, "confirmed",
+            ground_truth={"signal": "test_failure", "value": "passed"},
+        )
+        assert updated.outcome.ground_truth.signal == "test_failure"
+        assert updated.outcome.ground_truth.value == "passed"
+        # Verify persisted
+        retrieved = store.get(v.id)
+        assert retrieved.outcome.ground_truth.signal == "test_failure"
+
+    def test_resolve_with_resolution(self, store):
+        v = _make_verdict()
+        store.put(v)
+        updated = store.resolve(v.id, "confirmed", resolution="All good")
+        assert updated.outcome.resolution == "All good"
+        # Verify persisted
+        retrieved = store.get(v.id)
+        assert retrieved.outcome.resolution == "All good"
+
+    def test_resolve_missing_raises(self, store):
+        with pytest.raises(KeyError, match="not found"):
+            store.resolve("vrd-nonexistent", "confirmed")
+
+    def test_resolve_already_resolved_raises(self, store):
+        v = _make_verdict()
+        store.put(v)
+        store.resolve(v.id, "confirmed")
+        with pytest.raises(ValueError, match="expected 'pending'"):
+            store.resolve(v.id, "overridden")
+
+    def test_resolve_invalid_status_raises(self, store):
+        v = _make_verdict()
+        store.put(v)
+        with pytest.raises(ValueError, match="Invalid status"):
+            store.resolve(v.id, "bogus")
