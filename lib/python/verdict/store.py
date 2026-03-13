@@ -81,6 +81,7 @@ class VerdictStore(ABC):
         """Resolve a verdict in the store: get, validate, persist in one call.
 
         Delegates validation to core.resolve(). Returns the persisted verdict.
+        Thread-safety depends on the concrete store's get/update_outcome methods.
 
         Raises:
             KeyError: If verdict_id not found in store.
@@ -89,8 +90,10 @@ class VerdictStore(ABC):
         verdict = self.get(verdict_id)
         if verdict is None:
             raise KeyError(f"Verdict {verdict_id} not found")
-        _core_resolve(verdict, status, override=override,
-                       ground_truth=ground_truth, resolution=resolution)
+        _core_resolve(
+            verdict, status, override=override,
+            ground_truth=ground_truth, resolution=resolution,
+        )
         return self.update_outcome(verdict_id, verdict.outcome)
 
 
