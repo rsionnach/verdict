@@ -1,10 +1,10 @@
-# Verdict — The Atomic Unit of AI Judgment
+# nthlayer-learn — The Atomic Unit of AI Judgment
 
 AI systems today are fire-and-forget. They make thousands of decisions per day (approving code, correlating signals, triaging incidents, moderating content, generating recommendations) and almost never find out whether those decisions were right. Quality degrades silently, confidence doesn't track reality, and the same mistakes repeat indefinitely because there is no feedback loop.
 
 Verdicts close that loop. A verdict is a structured record of an AI decision that tracks what was evaluated, what was decided, how confident the AI was, and (critically) whether the decision turned out to be correct. The outcome phase is what makes verdicts different from logging: it turns isolated decisions into measurable, improvable judgment quality.
 
-Verdicts are independent of the [OpenSRM](https://github.com/rsionnach/nthlayer-spec-ecosystem) ecosystem, independent of any specific agent framework, and independent of any specific model provider. Any system where an AI makes decisions can emit verdicts.
+Verdicts are independent of the [OpenSRM](https://github.com/rsionnach/opensrm) ecosystem, independent of any specific agent framework, and independent of any specific model provider. Any system where an AI makes decisions can emit verdicts.
 
 ---
 
@@ -233,7 +233,7 @@ See [conventions/](conventions/) for the full semantic convention specifications
 
 ## OpenSRM Ecosystem
 
-Verdicts are independent of any specific ecosystem, but within the [OpenSRM](https://github.com/rsionnach/nthlayer-spec) reliability stack, the Verdict Store is the shared data substrate that all judgment-producing components communicate through:
+Verdicts are independent of any specific ecosystem, but within the [OpenSRM](https://github.com/rsionnach/opensrm) reliability stack, the Verdict Store is the shared data substrate that all judgment-producing components communicate through:
 
 ```
 Static Layer (Data + Tools)
