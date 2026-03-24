@@ -4,21 +4,21 @@ Verdicts are the data primitive that turns five independent OpenSRM tools into a
 
 ## Component Integration
 
-### Arbiter
+### nthlayer-measure
 
-The Arbiter's evaluation output becomes a verdict. Quality scores, dimensions, confidence, and reasoning map directly to the verdict schema. Self-calibration becomes `nthlayer-learn accuracy --producer arbiter`.
+The nthlayer-measure's evaluation output becomes a verdict. Quality scores, dimensions, confidence, and reasoning map directly to the verdict schema. Self-calibration becomes `nthlayer-learn accuracy --producer arbiter`.
 
-The Arbiter becomes more universal: any system that produces verdicts can be measured by it, without per-system adapters.
+The nthlayer-measure becomes more universal: any system that produces verdicts can be measured by it, without per-system adapters.
 
-### SitRep
+### nthlayer-correlate
 
-SitRep's correlation assessments become verdicts with `subject.type: correlation`. Each "this deploy caused this alert cluster" is a verdict. The snapshot as a whole can be a parent verdict with individual correlation verdicts as children.
+nthlayer-correlate's correlation assessments become verdicts with `subject.type: correlation`. Each "this deploy caused this alert cluster" is a verdict. The snapshot as a whole can be a parent verdict with individual correlation verdicts as children.
 
-Verdicts from other components (Arbiter quality verdicts, change events) arrive in SitRep as events and are indexed in the pre-correlation store alongside alerts and metric breaches.
+Verdicts from other components (nthlayer-measure quality verdicts, change events) arrive in nthlayer-correlate as events and are indexed in the pre-correlation store alongside alerts and metric breaches.
 
-### Mayday
+### nthlayer-respond
 
-Mayday consumes SitRep's correlation verdicts and produces its own (triage, investigation, remediation). The full chain is traceable through lineage.
+nthlayer-respond consumes nthlayer-correlate's correlation verdicts and produces its own (triage, investigation, remediation). The full chain is traceable through lineage.
 
 ### NthLayer
 
@@ -39,8 +39,8 @@ Every component depends on the verdict library. None depend on each other.
 
 ## Incremental Adoption
 
-- **Just Arbiter?** The Arbiter produces verdicts, stores them locally, humans resolve them.
-- **Adding SitRep?** SitRep produces its own verdicts and can read the Arbiter's. Lineage links automatically.
-- **Adding Mayday?** Mayday consumes SitRep's verdicts and produces its own. Full chain is traceable.
+- **Just nthlayer-measure?** The nthlayer-measure produces verdicts, stores them locally, humans resolve them.
+- **Adding nthlayer-correlate?** nthlayer-correlate produces its own verdicts and can read the nthlayer-measure's. Lineage links automatically.
+- **Adding nthlayer-respond?** nthlayer-respond consumes nthlayer-correlate's verdicts and produces its own. Full chain is traceable.
 
 No component needs to know about any other component's internals. They all speak verdicts.

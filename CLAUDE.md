@@ -10,7 +10,7 @@ The atomic unit of AI judgment. A schema and transport library for recording AI 
 
 Verdict is a standalone data primitive — no reasoning, no agents, no model calls. It creates, stores, links, resolves, and queries structured records of AI decisions. Any system where an AI makes a decision can emit verdicts. Any system that wants to measure whether those decisions were correct can consume them.
 
-Verdict is independent of the OpenSRM ecosystem but is a foundation layer for it: Arbiter, SitRep, and Mayday all produce verdicts.
+Verdict is independent of the OpenSRM ecosystem but is a foundation layer for it: nthlayer-measure (nthlayer-measure), nthlayer-correlate (nthlayer-correlate), and nthlayer-respond (nthlayer-respond) all produce verdicts.
 
 ---
 
@@ -20,7 +20,7 @@ Verdict is independent of the OpenSRM ecosystem but is a foundation layer for it
 ### Repo Layout
 
 ```
-verdicts/
+nthlayer-learn/
 ├── SPEC.md                      # Full schema specification
 ├── schema/                      # JSON Schema (verdict.json) and annotated YAML example
 ├── conventions/                 # OTel semantic convention specs
@@ -164,7 +164,7 @@ Metrics emitted via OTel Collector → Prometheus: `gen_ai_decision_total`, `gen
 ## Design Constraints
 
 - No judgment logic in this library — pure transport. No model calls ever.
-- The library is the mechanism; producers (Arbiter, SitRep, Mayday) are the sources of judgment.
+- The library is the mechanism; producers (nthlayer-measure, nthlayer-correlate, nthlayer-respond) are the sources of judgment.
 - `resolve()` requires `outcome.status == "pending"` — resolved verdicts are immutable.
 - `TTL_DEFAULT` = 90 days (7,776,000 seconds). Override via `Metadata.ttl`.
 - Gaming detection threshold: score-outcome divergence > 0.10 triggers an alert (high scores with poor real-world confirmation rate signals rubric optimisation rather than genuine correctness).
@@ -204,8 +204,8 @@ Verdict sits below all other components in the dependency graph. Every judgment-
 
 | Component | Role |
 |-----------|------|
-| [nthlayer-spec](../nthlayer-spec/) | Declares judgment SLOs; verdict metrics feed SLO compliance |
-| [nthlayer-measure](../arbiter/) | Produces `agent_output` verdicts for every evaluation |
-| [nthlayer-correlate](../sitrep/) | Produces `correlation` verdicts; reads `verdict` as event type |
-| [nthlayer-respond](../mayday/) | Produces `triage`, `investigation`, `communication`, `remediation` verdicts |
+| [opensrm](../opensrm/) | Declares judgment SLOs; verdict metrics feed SLO compliance |
+| [nthlayer-measure](../nthlayer-measure/) | Produces `agent_output` verdicts for every evaluation |
+| [nthlayer-correlate](../nthlayer-correlate/) | Produces `correlation` verdicts; reads `verdict` as event type |
+| [nthlayer-respond](../nthlayer-respond/) | Produces `triage`, `investigation`, `communication`, `remediation` verdicts |
 | [nthlayer](../nthlayer/) | Queries Prometheus metrics that originate from verdict OTel emission |

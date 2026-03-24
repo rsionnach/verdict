@@ -91,16 +91,16 @@ verdict:
 
 | Type | Example Producer | Example Judgment |
 |------|-----------------|-----------------|
-| `agent_output` | Arbiter | "This code review output is correct and complete" |
-| `correlation` | SitRep | "This deploy caused this latency spike" |
-| `triage` | Mayday Triage Agent | "This incident is severity 2" |
-| `investigation` | Mayday Investigation Agent | "Root cause is misconfigured connection pool" |
-| `remediation` | Mayday Remediation Agent | "Rollback to v2.3.0 will resolve this" |
+| `agent_output` | nthlayer-measure | "This code review output is correct and complete" |
+| `correlation` | nthlayer-correlate | "This deploy caused this latency spike" |
+| `triage` | nthlayer-respond Triage Agent | "This incident is severity 2" |
+| `investigation` | nthlayer-respond Investigation Agent | "Root cause is misconfigured connection pool" |
+| `remediation` | nthlayer-respond Remediation Agent | "Rollback to v2.3.0 will resolve this" |
 | `review` | Code reviewer, document reviewer | "This PR is ready to merge" |
 | `classification` | Content moderator | "This content is safe" |
 | `recommendation` | Any recommender system | "User would enjoy this product" |
 | `moderation` | Trust and safety system | "This message violates policy" |
-| `communication` | Mayday Communication agent | "Incident update is accurate and complete" |
+| `communication` | nthlayer-respond Communication agent | "Incident update is accurate and complete" |
 | `custom` | Any domain-specific AI | Domain-specific judgment |
 
 ## Lineage
@@ -108,13 +108,13 @@ verdict:
 Lineage turns isolated verdicts into a traceable decision chain.
 
 ```
-SitRep correlation verdict (vrd-001)
+nthlayer-correlate correlation verdict (vrd-001)
   "deploy v2.3.1 caused latency spike, confidence 0.71"
     │
-    └──▶ Mayday investigation verdict (vrd-002, context: [vrd-001])
+    └──▶ nthlayer-respond investigation verdict (vrd-002, context: [vrd-001])
           "root cause: deploy v2.3.1 removed connection pooling, confidence 0.65"
             │
-            ├──▶ Mayday remediation verdict (vrd-003, parent: vrd-002)
+            ├──▶ nthlayer-respond remediation verdict (vrd-003, parent: vrd-002)
             │     "rollback to v2.3.0, confidence 0.90"
             │
             └──▶ Human override verdict (vrd-004, parent: vrd-002)
@@ -122,7 +122,7 @@ SitRep correlation verdict (vrd-001)
                   (overrides vrd-003, confirms vrd-002)
 ```
 
-When vrd-004 confirms vrd-002 and overrides vrd-003, both SitRep and Mayday's investigation agent get positive calibration signals, and Mayday's remediation agent gets a negative one. All from one human action.
+When vrd-004 confirms vrd-002 and overrides vrd-003, both nthlayer-correlate and nthlayer-respond's investigation agent get positive calibration signals, and nthlayer-respond's remediation agent gets a negative one. All from one human action.
 
 Lineage is optional. A standalone verdict (no parent, no context, no children) is perfectly valid.
 
