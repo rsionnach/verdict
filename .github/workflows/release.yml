@@ -20,9 +20,7 @@ jobs:
         run: uv python install 3.11
 
       - name: Build package
-        run: |
-          cp ../../README.md .
-          uv build
+        run: uv build
         working-directory: lib/python
 
       - name: Verify package
