@@ -203,12 +203,12 @@ Entry point: `nthlayer-learn` (installed via `pip install nthlayer-learn`) or `p
 
 ```bash
 nthlayer-learn accuracy --producer <name> [--window 30d] [--db verdicts.db]
-nthlayer-learn list [--producer <name>] [--status pending] [--limit 20] [--db verdicts.db]
+nthlayer-learn list [--producer <name>] [--status pending] [--type <subject_type>] [--limit 20] [--format table|json] [--db verdicts.db]
 nthlayer-learn retrospective --incident-verdict <id> [--specs-dir <dir>] [--db verdicts.db]
 ```
 
 - `accuracy`: prints confirmation rate, override rate, partial rate, pending rate, and mean confidence for confirmed/overridden verdicts. `--producer` is required. `--window` filters to recent verdicts using duration format (s, m, h, d, w).
-- `list`: tabular output of verdict ID, timestamp, status, confidence, producer, and subject ref. All flags optional.
+- `list`: tabular output of verdict ID, timestamp, status, confidence, producer, and subject ref. All flags optional. `--type` filters by subject_type. `--format json` emits a JSON array instead of table rows.
 - `retrospective`: walks verdict lineage from an incident verdict ID and produces a post-incident analysis verdict (`subject.type="retrospective"`, `producer.system="nthlayer-learn"`). Prints duration, decisions affected, verdict count, blast radius, recommendations, and financial impact (if `--specs-dir` provided). Exits 1 if verdict not found.
   - Implementation: `build_retrospective(incident_verdict_id, verdict_store, specs_dir)` in `retrospective.py`
   - Lineage walk: `verdict_store.by_lineage(id, direction="up")` + window query 24h after incident timestamp (limit=500)
@@ -220,7 +220,7 @@ nthlayer-learn retrospective --incident-verdict <id> [--specs-dir <dir>] [--db v
   - Recommendations (`_generate_recommendations()`):
     - `slo_gate`: any evaluation verdict has slo_type="judgment" and breach=True
     - `dependency_review`: blast radius > 3 services
-    - `change_control`: reads `incident_custom.get("root_causes", [])` (incident metadata, not correlation verdict); type in `model_deploy`, `deploy`, `config_change`
+    - `change_control`: reads `incident_custom.get("root_causes", [])` (incident metadata, not correlation verdict); type in `model_deploy`, `deploy`, `config_change`, `model_regression`
   - Financial impact (`_compute_financial_impact()`): model = `revenue_per_minute × duration_minutes` per affected service from OpenSRM YAML `spec.outcomes.revenue_per_minute`; returns `None` if no specs_dir or empty blast_radius; output shape: `{estimated, currency: "USD", failure_mode: "service_degradation", volume_source: "spec.outcomes.revenue_per_minute"}`
   - Timeline: capped at 20 entries (chronological); `_build_timeline` uses `v.subject.ref or v.subject.service` (ref first, service as fallback)
 - Default `--db` path: `verdicts.db` (relative to cwd). SQLite creates the file if missing.
@@ -233,6 +233,27 @@ nthlayer-learn replay --producer arbiter --from 2026-02-01 --to 2026-03-01
 nthlayer-learn eval --producer arbiter --dataset eval/arbiter/
 nthlayer-learn gaming-check --producer arbiter --agent code-reviewer --window 90d
 ```
+
+---
+
+<!-- AUTO-MANAGED: build-commands -->
+## CI/CD
+
+### GitHub Actions Workflows
+
+**CI** (`.github/workflows/ci.yml`) — triggers on push/PR to `main` and `develop`:
+- `test` job: matrix across Python 3.11 and 3.12; `uv sync --extra dev` then `uv run pytest tests/ -v --tb=short -x` in `lib/python/`
+- `lint` job: `uv run ruff check nthlayer_learn/ tests/ --ignore E501,B008,F841,B007,E402,E721,E722,B012,I001`
+- `security` job: `pip-audit` (non-blocking — failures logged, not failing the build)
+
+**Release** (`.github/workflows/release.yml`) — triggers on GitHub release published:
+- Builds package: `uv build` in `lib/python/`
+- Verifies: `uvx twine check lib/python/dist/*`
+- Publishes to PyPI via `pypa/gh-action-pypi-publish@release/v1` with trusted publishing (OIDC — no token required)
+- Configure trusted publishing at: https://pypi.org/manage/project/nthlayer-learn/settings/publishing/
+
+Both workflows use `actions/checkout@v6` and `astral-sh/setup-uv@v7`.
+<!-- END AUTO-MANAGED -->
 
 ---
 

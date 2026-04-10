@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import argparse
+import json
 import re
 from datetime import datetime, timedelta, timezone
 
+from nthlayer_learn.serialise import to_dict
 from nthlayer_learn.sqlite_store import SQLiteVerdictStore
 from nthlayer_learn.store import AccuracyFilter, VerdictFilter
 
@@ -61,8 +63,15 @@ def _cmd_list(args: argparse.Namespace) -> None:
         verdicts = store.query(VerdictFilter(
             producer_system=args.producer,
             status=args.status,
+            subject_type=args.type,
             limit=args.limit,
         ))
+
+        fmt = getattr(args, "format", "table")
+
+        if fmt == "json":
+            print(json.dumps([to_dict(v) for v in verdicts], indent=2, default=str))
+            return
 
         if not verdicts:
             print("No verdicts found.")
@@ -128,7 +137,9 @@ def main(argv: list[str] | None = None) -> None:
     lst = sub.add_parser("list", help="List verdicts")
     lst.add_argument("--producer", default=None, help="Filter by producer")
     lst.add_argument("--status", default=None, help="Filter by outcome status")
+    lst.add_argument("--type", default=None, help="Filter by subject type (evaluation, correlation, etc.)")
     lst.add_argument("--limit", type=int, default=20, help="Max results (default 20)")
+    lst.add_argument("--format", default="table", choices=["table", "json"], help="Output format (default: table)")
     lst.add_argument("--db", default="verdicts.db", help="Path to SQLite store")
 
     # retrospective
