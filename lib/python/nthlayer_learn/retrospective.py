@@ -103,7 +103,12 @@ def build_retrospective(
         subject={
             "type": "retrospective",
             "ref": incident_verdict_id,
-            "summary": f"Retrospective for {incident_custom.get('incident_id', incident_verdict_id)}",
+            "summary": (
+                f"{root_cause.get('service', 'unknown')} {root_cause.get('type', 'incident')}"
+                f" — {duration_minutes:.0f}m duration, {decisions_affected} decisions degraded"
+                if root_cause else
+                f"Incident retrospective — {duration_minutes:.0f}m duration, {len(all_verdicts)} verdicts"
+            ),
         },
         judgment={
             "action": "flag",
@@ -224,9 +229,19 @@ def _generate_recommendations(
     for v in evaluation_verdicts:
         custom = getattr(v.metadata, "custom", {}) or {}
         if custom.get("slo_type") == "judgment" and custom.get("breach"):
+            slo_name = custom.get("slo_name", "unknown")
+            target = custom.get("target")
+            current = custom.get("current_value")
+            service = v.subject.ref or "unknown"
+            target_str = f"{target * 100:.1f}%" if target else "target"
+            current_str = f"{current * 100:.1f}%" if current else "current"
             recs.append({
                 "type": "slo_gate",
-                "detail": f"Add judgment SLO gate for {custom.get('slo_name', 'unknown')} to CI/CD pipeline",
+                "detail": (
+                    f"Block {service} model deploys when {slo_name} exceeds "
+                    f"{target_str} in canary window. This incident "
+                    f"({slo_name} hit {current_str}) would have been caught pre-production."
+                ),
                 "spec_field": "spec.deployment.gates.error_budget",
             })
             break
@@ -234,19 +249,31 @@ def _generate_recommendations(
     # Check blast radius size
     blast = incident_custom.get("blast_radius", [])
     if len(blast) > 3:
+        services_str = ", ".join(str(s) for s in blast[:5])
         recs.append({
             "type": "dependency_review",
-            "detail": f"Blast radius of {len(blast)} services suggests tight coupling. Review dependency graph.",
+            "detail": (
+                f"Blast radius of {len(blast)} services ({services_str}) suggests tight coupling. "
+                f"Add circuit breakers or bulkheads between critical dependency paths."
+            ),
             "spec_field": "spec.dependencies",
         })
 
     # Check if root cause was a change
     root_causes = incident_custom.get("root_causes", [])
     for rc in root_causes:
-        if isinstance(rc, dict) and rc.get("type") in ("model_deploy", "deploy", "config_change"):
+        if isinstance(rc, dict) and rc.get("type") in ("model_deploy", "deploy", "config_change", "model_regression"):
+            service = rc.get("service", "unknown")
+            change_type = rc.get("type", "change")
+            detail_text = rc.get("detail", "")
             recs.append({
                 "type": "change_control",
-                "detail": f"Root cause was a {rc.get('type')} on {rc.get('service', 'unknown')}. Consider canary deployment.",
+                "detail": (
+                    f"Require canary evaluation window before {change_type} on {service}. "
+                    f"{detail_text}" if detail_text else
+                    f"Require canary evaluation window before {change_type} on {service}. "
+                    f"A staged rollout with automated quality gates would have limited blast radius."
+                ),
                 "spec_field": "spec.deployment.strategy",
             })
             break
