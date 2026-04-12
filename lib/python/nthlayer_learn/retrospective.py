@@ -13,6 +13,7 @@ def build_retrospective(
     incident_verdict_id: str,
     verdict_store: VerdictStore,
     specs_dir: str | None = None,
+    decision_store: Any | None = None,
 ) -> Verdict:
     """Walk the verdict lineage from an incident verdict and produce a retrospective.
 
@@ -133,6 +134,18 @@ def build_retrospective(
     )
     link(retro, context=[incident_verdict_id])
     verdict_store.put(retro)
+
+    # Write content-addressed Evaluation record if decision_store is configured
+    if decision_store is not None:
+        _write_evaluation_record(
+            decision_store,
+            incident_custom=incident_custom,
+            duration_minutes=duration_minutes,
+            decisions_affected=decisions_affected,
+            root_cause=root_cause,
+            verdict_count=len(all_verdicts),
+            retro_timestamp=retro.timestamp,
+        )
 
     return retro
 
@@ -279,3 +292,90 @@ def _generate_recommendations(
             break
 
     return recs
+
+
+def _write_evaluation_record(
+    decision_store: Any,
+    *,
+    incident_custom: dict,
+    duration_minutes: float,
+    decisions_affected: int,
+    root_cause: dict | None,
+    verdict_count: int,
+    retro_timestamp: Any,
+) -> None:
+    """Write a content-addressed Evaluation record to the decision store."""
+    import logging
+
+    try:
+        from nthlayer_common.records.hashing import canonical_json, compute_hash
+        from nthlayer_common.records.models import (
+            ZERO_HASH,
+            Evaluation,
+            EvaluationMethod,
+            EvaluationOutcome,
+            Summaries,
+        )
+
+        incident_id = incident_custom.get("incident_id")
+        if not incident_id:
+            logging.getLogger(__name__).warning("Skipping evaluation record: no incident_id in incident metadata")
+            return
+        timestamp = _parse_ts(retro_timestamp)
+
+        # Determine method and outcome from the retrospective data
+        method = EvaluationMethod.METRIC_RECOVERY
+        if decisions_affected > 0:
+            outcome = EvaluationOutcome.EFFECTIVE if duration_minutes < 60 else EvaluationOutcome.PARTIAL
+        else:
+            outcome = EvaluationOutcome.INCONCLUSIVE
+
+        service = root_cause.get("service", "unknown") if root_cause else "unknown"
+        technical = f"Retrospective: {service}, {duration_minutes:.0f}m duration, {decisions_affected} decisions affected, {verdict_count} verdicts"
+        plain = f"Incident retrospective for {service} — {'resolved' if outcome == EvaluationOutcome.EFFECTIVE else 'partially resolved' if outcome == EvaluationOutcome.PARTIAL else 'inconclusive'}"
+
+        summaries = Summaries(
+            technical=technical[:280],
+            plain=plain[:280],
+        )
+
+        chain = decision_store.get_chain("evaluation", incident_id)
+        previous_hash = chain[-1].hash if chain else ZERO_HASH
+
+        placeholder = Evaluation(
+            hash="placeholder",
+            previous_hash=previous_hash,
+            schema_version="evaluation/v1",
+            timestamp=timestamp,
+            incident_id=incident_id,
+            verdict_hash=ZERO_HASH,  # TODO: link to specific remediation verdict hash in future bead
+            method=method,
+            outcome=outcome,
+            evidence_hashes=[],  # TODO: link to post-action assessment hashes in future bead
+            payload={
+                "duration_minutes": round(duration_minutes, 1),
+                "decisions_affected": decisions_affected,
+                "verdict_count": verdict_count,
+                "root_cause": root_cause,
+            },
+            summaries=summaries,
+        )
+        canonical = canonical_json(placeholder)
+        record_hash = compute_hash(canonical)
+
+        record = Evaluation(
+            hash=record_hash,
+            previous_hash=previous_hash,
+            schema_version="evaluation/v1",
+            timestamp=timestamp,
+            incident_id=incident_id,
+            verdict_hash=ZERO_HASH,
+            method=method,
+            outcome=outcome,
+            evidence_hashes=[],
+            payload=placeholder.payload,
+            summaries=summaries,
+        )
+        decision_store.put_evaluation(record)
+    except Exception as exc:
+        logging.getLogger(__name__).warning("Evaluation record write failed: %s", exc)

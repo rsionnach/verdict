@@ -33,3 +33,14 @@ Thumbs.db
 
 # Dolt database files (added by bd init)
 .dolt/
+
+# Specification and planning documents (internal, not for public repos)
+*SPEC*.md
+*-SPEC.md
+SRE-EXPERIENCE.md
+RESPOND-COMMS*.md
+COSTOPTIMISATION.md
+
+# Beads task tracking (centralized in opensrm Dolt DB)
+.beads/
+.beads.archived/

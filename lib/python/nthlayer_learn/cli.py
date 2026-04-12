@@ -93,11 +93,16 @@ def _cmd_retrospective(args: argparse.Namespace) -> None:
     from nthlayer_learn.retrospective import build_retrospective
 
     store = SQLiteVerdictStore(args.db)
+    decision_store = None
+    if getattr(args, "decision_store", None):
+        from nthlayer_common.records.sqlite_store import SQLiteDecisionRecordStore
+        decision_store = SQLiteDecisionRecordStore(args.decision_store)
     try:
         retro = build_retrospective(
             incident_verdict_id=args.incident_verdict,
             verdict_store=store,
             specs_dir=args.specs_dir,
+            decision_store=decision_store,
         )
         custom = retro.metadata.custom or {}
         print(f"Retrospective: {retro.id}")
@@ -147,6 +152,7 @@ def main(argv: list[str] | None = None) -> None:
     retro.add_argument("--incident-verdict", required=True, help="Incident verdict ID")
     retro.add_argument("--specs-dir", default=None, help="Directory of OpenSRM spec YAMLs (for financial impact)")
     retro.add_argument("--db", default="verdicts.db", help="Path to SQLite store")
+    retro.add_argument("--decision-store", default=None, help="Path to decision record SQLite DB for content-addressed records")
 
     args = parser.parse_args(argv)
 

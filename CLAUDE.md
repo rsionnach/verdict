@@ -34,7 +34,7 @@ nthlayer-learn/
 │           ├── store.py         # VerdictStore ABC, MemoryStore, VerdictFilter, AccuracyFilter
 │           ├── sqlite_store.py  # SQLiteVerdictStore — WAL-mode, thread-local connections
 │           ├── cli.py           # CLI entry point — accuracy, list, retrospective subcommands
-│           ├── retrospective.py # build_retrospective() — walks lineage (by_lineage "up") + 24h window query (limit=500); computes duration_minutes, decisions_affected (breach=True evals), root_cause (first correlation verdict root_causes[0]), blast_radius (correlation then incident fallback), financial_impact (rpm×duration from spec.outcomes), recommendations (slo_gate/dependency_review/change_control); creates and stores retrospective verdict
+│           ├── retrospective.py # build_retrospective(incident_verdict_id, verdict_store, specs_dir=None, decision_store=None) — walks lineage (by_lineage "up") + 24h window query (limit=500); computes duration_minutes, decisions_affected (breach=True evals), root_cause (first correlation verdict root_causes[0]), blast_radius (correlation then incident fallback), financial_impact (rpm×duration from spec.outcomes), recommendations (slo_gate/dependency_review/change_control); creates and stores retrospective verdict; optionally writes content-addressed Evaluation record to decision_store via _write_evaluation_record() (non-fatal)
 │           └── __main__.py      # python -m nthlayer_learn entry point
 ├── stores/
 │   ├── sqlite/                  # Default Tier 1 store
@@ -163,6 +163,8 @@ class VerdictStore(ABC):
 
 `tests/test_store.py` uses `@pytest.fixture(params=["memory", "sqlite"])` — every store test runs against both `MemoryStore` and `SQLiteVerdictStore`. Add new store tests to this parametrized fixture; do not write memory-only or sqlite-only tests unless testing implementation-specific behaviour.
 
+`tests/test_evaluation_records.py` — covers the Decision Records integration in `build_retrospective()`: verifies that a valid `Evaluation` record is written to `SQLiteDecisionRecordStore` when `decision_store` is provided, that `verify_hash()` returns True on the written record, that `incident_id` is propagated correctly, and that `payload` contains `duration_minutes`, `decisions_affected`, and `verdict_count`. Also verifies no error is raised when `decision_store=None`.
+
 Key invariants covered by the test suite:
 - `VerdictFilter(limit=0)` returns all results (unlimited); default limit=100 applies otherwise
 - `accuracy()` must consider all matching verdicts regardless of limit — not truncated at 100
@@ -204,13 +206,16 @@ Entry point: `nthlayer-learn` (installed via `pip install nthlayer-learn`) or `p
 ```bash
 nthlayer-learn accuracy --producer <name> [--window 30d] [--db verdicts.db]
 nthlayer-learn list [--producer <name>] [--status pending] [--type <subject_type>] [--limit 20] [--format table|json] [--db verdicts.db]
-nthlayer-learn retrospective --incident-verdict <id> [--specs-dir <dir>] [--db verdicts.db]
+nthlayer-learn retrospective --incident-verdict <id> [--specs-dir <dir>] [--db verdicts.db] [--decision-store <path>]
 ```
 
 - `accuracy`: prints confirmation rate, override rate, partial rate, pending rate, and mean confidence for confirmed/overridden verdicts. `--producer` is required. `--window` filters to recent verdicts using duration format (s, m, h, d, w).
 - `list`: tabular output of verdict ID, timestamp, status, confidence, producer, and subject ref. All flags optional. `--type` filters by subject_type. `--format json` emits a JSON array instead of table rows.
 - `retrospective`: walks verdict lineage from an incident verdict ID and produces a post-incident analysis verdict (`subject.type="retrospective"`, `producer.system="nthlayer-learn"`). Prints duration, decisions affected, verdict count, blast radius, recommendations, and financial impact (if `--specs-dir` provided). Exits 1 if verdict not found.
-  - Implementation: `build_retrospective(incident_verdict_id, verdict_store, specs_dir)` in `retrospective.py`
+  - Implementation: `build_retrospective(incident_verdict_id, verdict_store, specs_dir=None, decision_store=None)` in `retrospective.py`
+  - `--decision-store`: optional path to `nthlayer_common.records` SQLite DB; if set, writes a content-addressed `Evaluation` record (`schema_version="evaluation/v1"`) via `_write_evaluation_record()`; failure is non-fatal (logs warning)
+  - Decision record outcome: `EFFECTIVE` (decisions_affected > 0 and duration < 60m), `PARTIAL` (decisions_affected > 0 and duration >= 60m), `INCONCLUSIVE` (no breach evaluations); method always `METRIC_RECOVERY`
+  - Decision record payload: `{duration_minutes, decisions_affected, verdict_count, root_cause}`; uses content-addressed hash chain via `nthlayer_common.records.hashing`
   - Lineage walk: `verdict_store.by_lineage(id, direction="up")` + window query 24h after incident timestamp (limit=500)
   - Verdict classification: evaluation (breach=True counting), correlation (root_causes/blast_radius extraction) from lineage chain
   - `root_cause`: from `correlation_verdicts[0].metadata.custom["root_causes"][0]`
